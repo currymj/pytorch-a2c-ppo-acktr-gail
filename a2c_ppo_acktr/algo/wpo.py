@@ -32,7 +32,7 @@ class WPO():
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def _actions_pdist(self, actions):
-        raise NotImplementedError
+        return torch.cdist(actions, actions)
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs):
         raise NotImplementedError
@@ -83,10 +83,25 @@ class WPO():
                 # -- what about case for continuous actions -- with gaussian policies maybe we can compute directly?
                 # -- could we also simply: look at log probs for all actual actions taken, and compute pdist? is this defensible?
 
+                # actions taken are taken under old policy, so it's potentially a biased sample
+                # one supposes we would rather sample unif. at random to get completely unbiased
+
                 # consider that last case: we'd have old_action_log_probs_batch, action_log_probs (the two marginals), and actions_batch (actions taken)
                 # compute pdist matrix on actions_batch
                 # use log space sinkhorn on each log_probs to compute sinkhorn_penalty
                 # add onto action_loss
+
+                # considering last case: the whole point of this is that the state distributions are similar enough
+                # that we don't have to do any IS reweighting to deal with them. so sampling under one policy should be good
+                # enough, I think? (not sure if possible to reweight the actions)
+
+                print('actions_batch', actions_batch.shape)
+                print('old_log_probs', old_action_log_probs_batch.shape)
+                print('action_log_probs', action_log_probs.shape)
+
+
+                actions_pairwise = self._actions_pdist(actions_batch)
+                print('actions_pairwise', actions_pairwise.shape)
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
