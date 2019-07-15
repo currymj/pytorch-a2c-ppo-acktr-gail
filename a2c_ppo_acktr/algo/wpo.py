@@ -34,8 +34,40 @@ class WPO():
     def _actions_pdist(self, actions):
         return torch.cdist(actions, actions)
 
-    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs):
-        raise NotImplementedError
+    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-1, niter=5):
+        # see "computational optimal transport" peyre and cuturi, pg. 76, eqns 4.43 and 4.44
+        # initialize g to all ones
+        # need min_row(self, mat, eps) and min_col(self, mat, eps)
+        # for those, need softmin(self, vec, eps)
+        # matrix C is euclidean costs, S is C_ij - f_i - g_j
+        C = self._actions_pdist(actions)
+        g = torch.ones_like(old_log_probs)
+        a = old_log_probs.view(-1)
+        b = new_log_probs.view(-1)
+        f = torch.log(torch.ones_like(a) / len(a))
+        g = torch.log(torch.ones_like(b) / len(b))
+
+        def scaled_smat(f, g):
+            smat = C - f.unsqueeze(1) - g.unsqueeze(0)
+            scaled_smat = torch.exp(-smat / eps)
+            return scaled_smat
+        for n in range(niter):
+            minrow_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 1))
+            f = minrow_s - f + eps*a
+            mincol_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 0))
+            g = mincol_s - g + eps*b
+
+        kmat = torch.exp(-C / eps)
+        # below is wasteful, maybe optimize later
+        exp_f = torch.exp(f / eps)
+        exp_g = torch.exp(g / eps)
+        result_plan = torch.diag(exp_f) @ (kmat @ torch.diag(exp_g))
+        loss = exp_f @ (result_plan @ exp_g)
+
+
+        # resulting plan should be diagonal (exp(f/eps)) * exp(C/eps) * diagonal(exp(g/eps))
+        # then finally, the loss itself is inner product exp(f')*plan*exp(g)
+        return loss
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
@@ -100,8 +132,9 @@ class WPO():
                 print('action_log_probs', action_log_probs.shape)
 
 
-                actions_pairwise = self._actions_pdist(actions_batch)
-                print('actions_pairwise', actions_pairwise.shape)
+
+                sinkhorn_loss = self._log_space_sinkhorn(actions_batch, old_action_log_probs_batch, action_log_probs)
+                print('sinkhorn_loss', sinkhorn_loss.item())
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
