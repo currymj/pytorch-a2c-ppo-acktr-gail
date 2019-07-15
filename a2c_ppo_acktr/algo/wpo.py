@@ -31,6 +31,12 @@ class WPO():
 
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
+    def _actions_pdist(self, actions):
+        raise NotImplementedError
+
+    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs):
+        raise NotImplementedError
+
     def update(self, rollouts):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
         advantages = (advantages - advantages.mean()) / (
@@ -58,12 +64,29 @@ class WPO():
                     obs_batch, recurrent_hidden_states_batch, masks_batch,
                     actions_batch)
 
+                # loss function here
+                # this is the likelihood ratio computation
                 ratio = torch.exp(action_log_probs -
                                   old_action_log_probs_batch)
-                surr1 = ratio * adv_targ
+                surr1 = ratio * adv_targ # this would be the "standard" loss
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
-                                    1.0 + self.clip_param) * adv_targ
-                action_loss = -torch.min(surr1, surr2).mean()
+                                    1.0 + self.clip_param) * adv_targ # this is the clipped loss
+                # below is the min of the two
+                action_loss = -torch.min(surr1, surr2).mean() # summing over each point in trajectory
+                # loss function here
+
+                # what we want to do for our loss function is:
+                # compute the standard loss (surr1 above)
+                # also compute the sinkhorn based penalty. what are the inputs to this?
+                # -- for small # of discrete actions, just assume we have the matrix
+                # -- left marginal is old policy (do we have this somewhere)? right marginal is new policy (how do we get this?)
+                # -- what about case for continuous actions -- with gaussian policies maybe we can compute directly?
+                # -- could we also simply: look at log probs for all actual actions taken, and compute pdist? is this defensible?
+
+                # consider that last case: we'd have old_action_log_probs_batch, action_log_probs (the two marginals), and actions_batch (actions taken)
+                # compute pdist matrix on actions_batch
+                # use log space sinkhorn on each log_probs to compute sinkhorn_penalty
+                # add onto action_loss
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
@@ -79,6 +102,9 @@ class WPO():
                 self.optimizer.zero_grad()
                 (value_loss * self.value_loss_coef + action_loss -
                  dist_entropy * self.entropy_coef).backward()
+                 # if we're already doing sinkhorn do we need a separate entropy regularizer?
+
+                 # do we want to keep clipping gradient norm?
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(),
                                          self.max_grad_norm)
                 self.optimizer.step()
