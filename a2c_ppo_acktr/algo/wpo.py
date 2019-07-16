@@ -34,7 +34,7 @@ class WPO():
     def _actions_pdist(self, actions):
         return torch.cdist(actions, actions)
 
-    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-1, niter=5):
+    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
         # see "computational optimal transport" peyre and cuturi, pg. 76, eqns 4.43 and 4.44
         # initialize g to all ones
         # need min_row(self, mat, eps) and min_col(self, mat, eps)
@@ -53,21 +53,16 @@ class WPO():
             return scaled_smat
         for n in range(niter):
             minrow_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 1))
-            f = minrow_s - f + eps*a
+            f = minrow_s + f + eps*a
             mincol_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 0))
-            g = mincol_s - g + eps*b
+            g = mincol_s + g + eps*b
 
-        kmat = torch.exp(-C / eps)
-        # below is wasteful, maybe optimize later
-        exp_f = torch.exp(f / eps)
-        exp_g = torch.exp(g / eps)
-        result_plan = torch.diag(exp_f) @ (kmat @ torch.diag(exp_g))
-        loss = exp_f @ (result_plan @ exp_g)
+        loss = (f @ torch.exp(a)) + (g @ torch.exp(b))
 
-
-        # resulting plan should be diagonal (exp(f/eps)) * exp(C/eps) * diagonal(exp(g/eps))
-        # then finally, the loss itself is inner product exp(f')*plan*exp(g)
+        # this might be correct but the given logprobs can't be used as
+        # sinkhorn marginals, at least not in an obvious way
         return loss
+
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
@@ -126,6 +121,17 @@ class WPO():
                 # considering last case: the whole point of this is that the state distributions are similar enough
                 # that we don't have to do any IS reweighting to deal with them. so sampling under one policy should be good
                 # enough, I think? (not sure if possible to reweight the actions)
+
+                # a major problem that makes it troubling to get this to work well is the fact that
+                # the histograms on the left and right will be un-normalized -- i.e. the marginals having log-probs
+                # doesn't make them probability distributions
+
+                # what would work (as in primal form GAN) is a trajectory from old, and a trajectory from new, pdist
+                # and run sinkhorn with uniform marginals. but this defeats the purpose -- we don't want to sample under new
+
+                # what would also work is explicit computation between distributions (even maybe discrete approx). e.g. for gaussians
+
+                # would it also work to simply normalize -- essentially making it two conditional distributions over just the observed actions?
 
                 print('actions_batch', actions_batch.shape)
                 print('old_log_probs', old_action_log_probs_batch.shape)
