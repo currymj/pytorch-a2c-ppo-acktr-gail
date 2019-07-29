@@ -11,7 +11,7 @@ class WPO():
                  ppo_epoch,
                  num_mini_batch,
                  value_loss_coef,
-                 entropy_coef,
+                 beta,
                  lr=None,
                  eps=None,
                  max_grad_norm=None,
@@ -24,7 +24,7 @@ class WPO():
         self.num_mini_batch = num_mini_batch
 
         self.value_loss_coef = value_loss_coef
-        self.entropy_coef = entropy_coef
+        self.beta = beta
 
         self.max_grad_norm = max_grad_norm
         self.use_clipped_value_loss = use_clipped_value_loss
@@ -33,6 +33,9 @@ class WPO():
 
     def _actions_pdist(self, actions):
         return torch.cdist(actions, actions)
+
+    def _sinkhorn_loss(self, old_actions, new_actions, eps=1e-2, niter=10):
+        raise NotImplementedError
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
         raise NotImplementedError # this is no longer what we want, want to look at dists not logprobs
@@ -99,7 +102,7 @@ class WPO():
 
 
                 # Reshape to do in a single forward pass for all steps
-                values, action_dist, action_log_probs, _, _ = self.actor_critic.evaluate_actions_with_feats(
+                values, action_dist, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions_with_feats(
                     obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch)
                 print(action_dist)
 
@@ -134,7 +137,7 @@ class WPO():
 
 
 
-                sinkhorn_loss = self._log_space_sinkhorn(actions_batch, old_action_log_probs_batch, action_log_probs)
+                sinkhorn_loss = self._sinkhorn_loss(old_action_dist, action_dist)
                 print('sinkhorn_loss', sinkhorn_loss.item())
 
                 if self.use_clipped_value_loss:
@@ -149,8 +152,7 @@ class WPO():
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 self.optimizer.zero_grad()
-                (value_loss * self.value_loss_coef + action_loss -
-                 dist_entropy * self.entropy_coef).backward()
+                (value_loss * self.value_loss_coef + action_loss + sinkhorn_loss*self.beta).backward()
                  # if we're already doing sinkhorn do we need a separate entropy regularizer?
 
                  # do we want to keep clipping gradient norm?
