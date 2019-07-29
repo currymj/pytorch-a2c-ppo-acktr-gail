@@ -78,6 +78,19 @@ class Policy(nn.Module):
 
         return value, action_log_probs, dist_entropy, rnn_hxs
 
+    def evaluate_actions_with_feats(self, inputs, rnn_hxs, masks, action, keep_grad=True):
+        value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
+        if keep_grad:
+            dist = self.dist(actor_features)
+        else:
+            dist = self.dist(actor_features.detach())
+        action_log_probs = dist.log_probs(action)
+        dist_entropy = dist.entropy().mean()
+
+
+        return value, dist, action_log_probs, dist_entropy, rnn_hxs
+
+
 
 class NNBase(nn.Module):
     def __init__(self, recurrent, recurrent_input_size, hidden_size):

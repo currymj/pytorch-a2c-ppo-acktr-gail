@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import copy
 
 class WPO():
     def __init__(self,
@@ -35,6 +35,7 @@ class WPO():
         return torch.cdist(actions, actions)
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
+        raise NotImplementedError # this is no longer what we want, want to look at dists not logprobs
         # see "computational optimal transport" peyre and cuturi, pg. 76, eqns 4.43 and 4.44
         # initialize g to all ones
         # need min_row(self, mat, eps) and min_col(self, mat, eps)
@@ -73,6 +74,10 @@ class WPO():
         action_loss_epoch = 0
         dist_entropy_epoch = 0
 
+        # save current policy here
+        behavior_policy = copy.deepcopy(self.actor_critic)
+
+        # does it need its own gradients or not? (probably not)
         for e in range(self.ppo_epoch):
             if self.actor_critic.is_recurrent:
                 data_generator = rollouts.recurrent_generator(
@@ -86,10 +91,18 @@ class WPO():
                    value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
                         adv_targ = sample
 
+
+                # get old action_feats here
+                _, old_action_dist, _, _, _ = behavior_policy.evaluate_actions_with_feats(obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch, keep_grad=False)
+                print(old_action_dist)
+                # get new action_feats also
+
+
                 # Reshape to do in a single forward pass for all steps
-                values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
-                    obs_batch, recurrent_hidden_states_batch, masks_batch,
-                    actions_batch)
+                values, action_dist, action_log_probs, _, _ = self.actor_critic.evaluate_actions_with_feats(
+                    obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch)
+                print(action_dist)
+
 
                 # loss function here
                 # this is the likelihood ratio computation
@@ -113,25 +126,7 @@ class WPO():
                 # actions taken are taken under old policy, so it's potentially a biased sample
                 # one supposes we would rather sample unif. at random to get completely unbiased
 
-                # consider that last case: we'd have old_action_log_probs_batch, action_log_probs (the two marginals), and actions_batch (actions taken)
-                # compute pdist matrix on actions_batch
-                # use log space sinkhorn on each log_probs to compute sinkhorn_penalty
-                # add onto action_loss
 
-                # considering last case: the whole point of this is that the state distributions are similar enough
-                # that we don't have to do any IS reweighting to deal with them. so sampling under one policy should be good
-                # enough, I think? (not sure if possible to reweight the actions)
-
-                # a major problem that makes it troubling to get this to work well is the fact that
-                # the histograms on the left and right will be un-normalized -- i.e. the marginals having log-probs
-                # doesn't make them probability distributions
-
-                # what would work (as in primal form GAN) is a trajectory from old, and a trajectory from new, pdist
-                # and run sinkhorn with uniform marginals. but this defeats the purpose -- we don't want to sample under new
-
-                # what would also work is explicit computation between distributions (even maybe discrete approx). e.g. for gaussians
-
-                # would it also work to simply normalize -- essentially making it two conditional distributions over just the observed actions?
 
                 print('actions_batch', actions_batch.shape)
                 print('old_log_probs', old_action_log_probs_batch.shape)
