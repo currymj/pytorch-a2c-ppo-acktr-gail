@@ -112,48 +112,21 @@ class WPO():
 
                 # get old action_feats here
                 _, old_action_dist, _, _, _ = behavior_policy.evaluate_actions_with_feats(obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch, keep_grad=False)
-                print(old_action_dist)
                 # get new action_feats also
 
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_dist, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions_with_feats(
                     obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch)
-                print(action_dist)
-
 
                 # loss function here
                 # this is the likelihood ratio computation
                 ratio = torch.exp(action_log_probs -
                                   old_action_log_probs_batch)
                 surr1 = ratio * adv_targ # this would be the "standard" loss
-                surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
-                                    1.0 + self.clip_param) * adv_targ # this is the clipped loss
-                # below is the min of the two
-                action_loss = -torch.min(surr1, surr2).mean() # summing over each point in trajectory
-                # loss function here
-
-                # what we want to do for our loss function is:
-                # compute the standard loss (surr1 above)
-                # also compute the sinkhorn based penalty. what are the inputs to this?
-                # -- for small # of discrete actions, just assume we have the matrix
-                # -- left marginal is old policy (do we have this somewhere)? right marginal is new policy (how do we get this?)
-                # -- what about case for continuous actions -- with gaussian policies maybe we can compute directly?
-                # -- could we also simply: look at log probs for all actual actions taken, and compute pdist? is this defensible?
-
-                # actions taken are taken under old policy, so it's potentially a biased sample
-                # one supposes we would rather sample unif. at random to get completely unbiased
-
-
-
-                print('actions_batch', actions_batch.shape)
-                print('old_log_probs', old_action_log_probs_batch.shape)
-                print('action_log_probs', action_log_probs.shape)
-
-
+                action_loss = -surr1.mean() # summing over each point in trajectory
 
                 sinkhorn_loss = self._sinkhorn_loss(old_action_dist, action_dist)
-                print('sinkhorn_loss', sinkhorn_loss.item())
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
