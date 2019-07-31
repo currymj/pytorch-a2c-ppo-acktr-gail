@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import copy
+import numpy as np
 
 class WPO():
     def __init__(self,
@@ -55,8 +56,8 @@ class WPO():
         proj_vectors /= torch.norm(proj_vectors, dim=0).unsqueeze(0)
 
         sampling_rate = 100
-        samples = torch.arange(0.0,1.0,1.0/sampling_rate)
-        sampled_erfc = torch.erfinv(samples).view(1,1,-1)
+        samples = torch.arange(0.1,1.0,1.0/sampling_rate).to(old_actions.loc.device)
+        sampled_erfinv_coef = np.sqrt(2.0) * torch.erfinv(1.0 - 2.0*samples).view(1,1,-1)
 
         def projections(dist_object):
             locs = dist_object.loc @ proj_vectors
@@ -67,8 +68,19 @@ class WPO():
         old_projected_locs, old_projected_scales = projections(old_actions)
         new_projected_locs, new_projected_scales = projections(new_actions)
 
+        def integration(old_projected_locs, old_projected_scales, new_projected_locs, new_projected_scales):
+            total = old_projected_locs - new_projected_locs
+            total = total.unsqueeze(2)
+            total = total - old_projected_scales.unsqueeze(2)*sampled_erfinv_coef
+            total += new_projected_scales.unsqueeze(2)*sampled_erfinv_coef
+            total = torch.abs(total)
+            return torch.mean(total, dim=2)
         # given a scalar mu/sigma, need closed form wasserstein-1 solution
-        raise NotImplementedError
+        integral_results = integration(old_projected_locs, old_projected_scales, new_projected_locs, new_projected_scales)
+        per_batch_sliced_wasserstein = torch.mean(integral_results, dim=1)
+        total_loss = torch.mean(per_batch_sliced_wasserstein)
+
+        return total_loss
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
         raise NotImplementedError # this is no longer what we want, want to look at dists not logprobs
