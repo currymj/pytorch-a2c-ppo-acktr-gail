@@ -29,6 +29,7 @@ class WPO():
         self.max_grad_norm = max_grad_norm
         self.use_clipped_value_loss = use_clipped_value_loss
 
+
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def _actions_pdist(self, actions):
@@ -50,14 +51,23 @@ class WPO():
         # of diag
         action_size = old_actions.loc.shape[1]
         # random vectors and normalize
-        proj_vectors = torch.rand(num_projections, action_size)
-        proj_vectors /= torch.norm(proj_vectors, dim=1).unsqueeze(1)
+        proj_vectors = torch.rand(action_size, num_projections).to(old_actions.loc.device)
+        proj_vectors /= torch.norm(proj_vectors, dim=0).unsqueeze(0)
+
+        sampling_rate = 100
+        samples = torch.arange(0.0,1.0,1.0/sampling_rate)
+        sampled_erfc = torch.erfinv(samples).view(1,1,-1)
 
         def projections(dist_object):
-            return dist_object.loc @ proj_vectors, dist_object.scale @ (proj_vectors ** 2)
+            locs = dist_object.loc @ proj_vectors
+            scales = dist_object.scale @ (proj_vectors ** 2)
+            return locs, scales
 
+        
         old_projected_locs, old_projected_scales = projections(old_actions)
         new_projected_locs, new_projected_scales = projections(new_actions)
+
+        # given a scalar mu/sigma, need closed form wasserstein-1 solution
         raise NotImplementedError
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
