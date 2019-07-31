@@ -82,36 +82,6 @@ class WPO():
 
         return total_loss
 
-    def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
-        raise NotImplementedError # this is no longer what we want, want to look at dists not logprobs
-        # see "computational optimal transport" peyre and cuturi, pg. 76, eqns 4.43 and 4.44
-        # initialize g to all ones
-        # need min_row(self, mat, eps) and min_col(self, mat, eps)
-        # for those, need softmin(self, vec, eps)
-        # matrix C is euclidean costs, S is C_ij - f_i - g_j
-        C = self._actions_pdist(actions)
-        g = torch.ones_like(old_log_probs)
-        a = old_log_probs.view(-1)
-        b = new_log_probs.view(-1)
-        f = torch.log(torch.ones_like(a) / len(a))
-        g = torch.log(torch.ones_like(b) / len(b))
-
-        def scaled_smat(f, g):
-            smat = C - f.unsqueeze(1) - g.unsqueeze(0)
-            scaled_smat = torch.exp(-smat / eps)
-            return scaled_smat
-        for n in range(niter):
-            minrow_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 1))
-            f = minrow_s + f + eps*a
-            mincol_s = -eps*torch.log( torch.sum(scaled_smat(f, g), 0))
-            g = mincol_s + g + eps*b
-
-        loss = (f @ torch.exp(a)) + (g @ torch.exp(b))
-
-        # this might be correct but the given logprobs can't be used as
-        # sinkhorn marginals, at least not in an obvious way
-        return loss
-
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
