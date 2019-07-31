@@ -34,7 +34,30 @@ class WPO():
     def _actions_pdist(self, actions):
         return torch.cdist(actions, actions)
 
-    def _sinkhorn_loss(self, old_actions, new_actions, eps=1e-2, niter=10):
+    def _sinkhorn_loss(self, old_actions, new_actions,
+            eps=1e-2,
+            niter=10,
+            num_projections=32):
+        # create matrix of unit vectors to project on
+        # each column vector is one unit vector
+
+        # each row of actions.loc is a single mu
+        # so actions.loc @ slice_matrix should give batch x projection result
+
+        # actions.scale is a matrix of size row x diag
+        # result should be a matrix of size batch x num_projections
+        # should just be actions.scale @ (projmat ** 2) taking advantage
+        # of diag
+        action_size = old_actions.loc.shape[1]
+        # random vectors and normalize
+        proj_vectors = torch.rand(num_projections, action_size)
+        proj_vectors /= torch.norm(proj_vectors, dim=1).unsqueeze(1)
+
+        def projections(dist_object):
+            return dist_object.loc @ proj_vectors, dist_object.scale @ (proj_vectors ** 2)
+
+        old_projected_locs, old_projected_scales = projections(old_actions)
+        new_projected_locs, new_projected_scales = projections(new_actions)
         raise NotImplementedError
 
     def _log_space_sinkhorn(self, actions, old_log_probs, new_log_probs, eps=1e-2, niter=10):
