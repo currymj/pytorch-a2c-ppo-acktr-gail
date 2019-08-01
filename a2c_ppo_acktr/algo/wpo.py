@@ -13,6 +13,7 @@ class WPO():
                  num_mini_batch,
                  value_loss_coef,
                  beta,
+                 prox_target,
                  lr=None,
                  eps=None,
                  max_grad_norm=None,
@@ -26,6 +27,7 @@ class WPO():
 
         self.value_loss_coef = value_loss_coef
         self.beta = beta
+        self.prox_target = prox_target
 
         self.max_grad_norm = max_grad_norm
         self.use_clipped_value_loss = use_clipped_value_loss
@@ -139,7 +141,13 @@ class WPO():
                 else:
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
+                sinkhorn_item = sinkhorn_loss.item()
                 self.optimizer.zero_grad()
+                if sinkhorn_item < self.prox_target/1.5:
+                    self.beta /= 2.0
+                if sinkhorn_item > self.prox_target*1.5:
+                    self.beta *= 2.0
+
                 (value_loss * self.value_loss_coef + action_loss + sinkhorn_loss*self.beta).backward()
                  # if we're already doing sinkhorn do we need a separate entropy regularizer?
 

@@ -63,7 +63,7 @@ def main():
             args.ppo_epoch,
             args.num_mini_batch,
             args.value_loss_coef,
-            args.beta,
+            args.entropy_coef,
             lr=args.lr,
             eps=args.eps,
             max_grad_norm=args.max_grad_norm)
@@ -74,7 +74,8 @@ def main():
             args.ppo_epoch,
             args.num_mini_batch,
             args.value_loss_coef,
-            args.entropy_coef,
+            args.beta,
+            args.prox_target,
             lr=args.lr,
             eps=args.eps,
             max_grad_norm=args.max_grad_norm)

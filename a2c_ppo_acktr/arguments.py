@@ -31,9 +31,15 @@ def get_args():
         default=1e-5,
         help='RMSprop optimizer epsilon (default: 1e-5)')
     parser.add_argument(
+            '--prox-target',
+            type=float,
+            default=0.1,
+            help='Target proximal loss (beta adapts to hit this). Default 0.1')
+
+    parser.add_argument(
             '--beta',
             type=float,
-            default=1e-2,
+            default=0.01,
             help='Beta step size for proximal step (default 1e-2)')
     parser.add_argument(
         '--alpha',
