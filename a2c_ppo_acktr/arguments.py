@@ -52,6 +52,12 @@ def get_args():
         default=0.99,
         help='discount factor for rewards (default: 0.99)')
     parser.add_argument(
+        '--normalize-returns',
+        action='store_true',
+        default=False,
+        help='subtract mean and std from returns')
+
+    parser.add_argument(
         '--use-gae',
         action='store_true',
         default=False,
