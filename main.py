@@ -76,6 +76,8 @@ def main():
             args.value_loss_coef,
             args.beta,
             args.prox_target,
+            args.entropy_coef,
+            no_wasserstein=args.no_wasserstein,
             lr=args.lr,
             eps=args.eps,
             max_grad_norm=args.max_grad_norm)

@@ -35,7 +35,11 @@ def get_args():
             type=float,
             default=0.1,
             help='Target proximal loss (beta adapts to hit this). Default 0.1')
-
+    parser.add_argument(
+        '--no-wasserstein',
+        action='store_true',
+        default=False,
+        help="Don't use wasserstein penalty (for testing WPO)")
     parser.add_argument(
             '--beta',
             type=float,

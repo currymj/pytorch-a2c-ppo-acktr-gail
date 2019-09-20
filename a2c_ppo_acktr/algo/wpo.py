@@ -14,8 +14,10 @@ class WPO():
                  value_loss_coef,
                  beta,
                  prox_target,
+                 entropy_coef,
                  lr=None,
                  eps=None,
+                 no_wasserstein=False,
                  max_grad_norm=None,
                  use_clipped_value_loss=True):
 
@@ -28,11 +30,13 @@ class WPO():
         self.value_loss_coef = value_loss_coef
         self.beta = beta
         self.prox_target = prox_target
+        self.entropy_coef = entropy_coef
 
         self.max_grad_norm = max_grad_norm
         self.use_clipped_value_loss = use_clipped_value_loss
 
 
+        self.no_wasserstein=no_wasserstein
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def _actions_pdist(self, actions):
@@ -41,7 +45,9 @@ class WPO():
     def _sinkhorn_loss(self, old_actions, new_actions,
             eps=1e-2,
             niter=10,
-            num_projections=32):
+            num_projections=64):
+        ## NOTE!!!! this is sliced wasserstein not sinkhorn!!!
+        ## change this name soon TODO
         # create matrix of unit vectors to project on
         # each column vector is one unit vector
 
@@ -148,7 +154,10 @@ class WPO():
                 if sinkhorn_item > self.prox_target*1.5:
                     self.beta *= 2.0
 
-                (value_loss * self.value_loss_coef + action_loss + sinkhorn_loss*self.beta).backward()
+                if self.no_wasserstein:
+                    (value_loss * self.value_loss_coef + action_loss - dist_entropy * self.entropy_coef).backward()
+                else:
+                    (value_loss * self.value_loss_coef + action_loss + sinkhorn_loss*self.beta - dist_entropy * self.entropy_coef).backward()
                  # if we're already doing sinkhorn do we need a separate entropy regularizer?
 
                  # do we want to keep clipping gradient norm?
