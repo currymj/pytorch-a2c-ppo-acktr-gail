@@ -149,10 +149,10 @@ class WPO():
 
                 sinkhorn_item = sinkhorn_loss.item()
                 self.optimizer.zero_grad()
-                if sinkhorn_item < self.prox_target/1.5:
-                    self.beta /= 2.0
-                if sinkhorn_item > self.prox_target*1.5:
-                    self.beta *= 2.0
+                #if sinkhorn_item < self.prox_target/1.5:
+                    #self.beta /= 2.0
+                #if sinkhorn_item > self.prox_target*1.5:
+                    #self.beta *= 2.0
 
                 if self.no_wasserstein:
                     (value_loss * self.value_loss_coef + action_loss - dist_entropy * self.entropy_coef).backward()
@@ -170,6 +170,11 @@ class WPO():
                 dist_entropy_epoch += dist_entropy.item()
 
         num_updates = self.ppo_epoch * self.num_mini_batch
+
+        if sinkhorn_item < self.prox_target/1.5:
+            self.beta /= 2.0
+        if sinkhorn_item > self.prox_target*1.5:
+            self.beta *= 2.0
 
         value_loss_epoch /= num_updates
         action_loss_epoch /= num_updates
