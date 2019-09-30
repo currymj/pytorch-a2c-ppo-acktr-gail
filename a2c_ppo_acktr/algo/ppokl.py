@@ -39,7 +39,7 @@ class PPOKL():
     def _kl_loss(self, old_actions, new_actions):
         mu_diff = new_actions.loc - old_actions.loc
         middle_term = torch.sum((mu_diff * (1.0 / new_actions.scale)) * (mu_diff), dim=1)
-        det_ratio = torch.log(torch.prod(old_actions.scale, dim=1) / torch.prod(new_actions.scale, dim=1))
+        det_ratio = torch.log(torch.prod(new_actions.scale, dim=1) / torch.prod(old_actions.scale, dim=1))
         k = old_actions.loc.shape[1]
         cov_trace = torch.sum(old_actions.scale / new_actions.scale, dim=1)
         return torch.mean(0.5 * (cov_trace + middle_term - k + det_ratio), dim=0)
@@ -102,6 +102,7 @@ class PPOKL():
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 kl_item = kl_loss.item()
+                #print(kl_item)
                 self.optimizer.zero_grad()
                 #if sinkhorn_item < self.prox_target/1.5:
                 #self.beta /= 2.0
@@ -120,12 +121,13 @@ class PPOKL():
                 action_loss_epoch += action_loss.item()
                 dist_entropy_epoch += dist_entropy.item()
 
+            if kl_item < self.prox_target/1.5:
+                self.beta /= 2.0
+            if kl_item > self.prox_target*1.5:
+                self.beta *= 2.0
+
         num_updates = self.ppo_epoch * self.num_mini_batch
 
-        if kl_item < self.prox_target/1.5:
-            self.beta /= 2.0
-        if kl_item > self.prox_target*1.5:
-            self.beta *= 2.0
 
         value_loss_epoch /= num_updates
         action_loss_epoch /= num_updates

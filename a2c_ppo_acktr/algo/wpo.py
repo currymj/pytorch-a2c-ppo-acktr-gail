@@ -169,12 +169,12 @@ class WPO():
                 action_loss_epoch += action_loss.item()
                 dist_entropy_epoch += dist_entropy.item()
 
+            if sinkhorn_item < self.prox_target/1.5:
+                self.beta /= 2.0
+            if sinkhorn_item > self.prox_target*1.5:
+                self.beta *= 2.0
         num_updates = self.ppo_epoch * self.num_mini_batch
 
-        if sinkhorn_item < self.prox_target/1.5:
-            self.beta /= 2.0
-        if sinkhorn_item > self.prox_target*1.5:
-            self.beta *= 2.0
 
         value_loss_epoch /= num_updates
         action_loss_epoch /= num_updates
