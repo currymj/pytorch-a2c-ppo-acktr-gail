@@ -67,6 +67,19 @@ def main():
             lr=args.lr,
             eps=args.eps,
             max_grad_norm=args.max_grad_norm)
+    elif args.algo == 'ppokl':
+        agent = algo.PPOKL(
+            actor_critic,
+            args.clip_param,
+            args.ppo_epoch,
+            args.num_mini_batch,
+            args.value_loss_coef,
+            args.beta,
+            args.prox_target,
+            args.entropy_coef,
+            lr=args.lr,
+            eps=args.eps,
+            max_grad_norm=args.max_grad_norm)
     elif args.algo == 'wpo':
         agent = algo.WPO(
             actor_critic,
